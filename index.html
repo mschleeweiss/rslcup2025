@@ -512,22 +512,19 @@
                     teamStats[teamB] = { name: teamB, matches: 0, wins: 0, sets: 0, points: 0, goalDiff: 0, setDiff: 0 };
                 }
 
-                // Count matches
-                teamStats[teamA].matches++;
-                teamStats[teamB].matches++;
-
+                
                 // Count sets and determine winner
                 let setsA = 0;
                 let setsB = 0;
                 let goalsA = 0;
                 let goalsB = 0;
-
+                
                 for (let i = 1; i <= 5; i++) {
                     const scoreKey = `score set ${i}`;
                     if (match[scoreKey] !== undefined && match[scoreKey] !== null && match[scoreKey] !== '') {
                         const score = match[scoreKey].toString();
                         const parts = score.split('-');
-
+                        
                         if (parts.length === 2) {
                             const goalA = parseInt(parts[0]);
                             const goalB = parseInt(parts[1]);
@@ -544,6 +541,12 @@
                             }
                         }
                     }
+                }
+
+                if (setsA > 0 || setsB > 0) {
+                    // Count matches
+                    teamStats[teamA].matches++;
+                    teamStats[teamB].matches++;
                 }
 
                 // Update team stats
