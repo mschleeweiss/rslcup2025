@@ -343,16 +343,29 @@
 
             Object.keys(roundsMap).forEach(round => {
                 const num = parseInt(round);
-                if (!isNaN(num) && num > maxRoundNumber) {
+                if (!isNaN(num)) {
                     const matches = roundsMap[round];
-                    const hasCompleteMatch = matches.some(match => {
+                    const hasIncompleteMatch = matches.some(match => {
+                        // Check if this is a bye match (team b is empty)
+                        const isBye = !match['team b'] || match['team b'].toString().trim() === '';
+                        if (isBye) {
+                            // Bye matches are always "complete"
+                            return false;
+                        }
+                        
+                        // Check if any regular match has no scores
+                        let hasAnyScore = false;
                         for (let i = 1; i <= 5; i++) {
                             const score = match[`score set ${i}`];
-                            if (score) return true;
+                            if (score && score.toString().trim() !== '') {
+                                hasAnyScore = true;
+                                break;
+                            }
                         }
-                        return false;
+                        return !hasAnyScore; // Return true if no scores found (incomplete match)
                     });
-                    if (!hasCompleteMatch) {
+                    
+                    if (hasIncompleteMatch && num > maxRoundNumber) {
                         maxRoundNumber = num;
                         currentRound = round;
                     }
@@ -425,68 +438,89 @@
             teamA.className = 'team';
             teamA.textContent = match['team a'] || 'Team A';
 
-            const teamB = document.createElement('div');
-            teamB.className = 'team';
-            teamB.textContent = match['team b'] || 'Team B';
+            // Check if this is a bye (team b is empty/null/undefined)
+            const isBye = !match['team b'] || match['team b'].toString().trim() === '';
 
-            let setsWonA = 0;
-            let setsWonB = 0;
+            if (isBye) {
+                // For bye matches, only show the team that gets the bye
+                teamA.classList.add('winner-team'); // Mark as winner (green)
 
-            for (let i = 1; i <= 5; i++) {
-                const scoreKey = `score set ${i}`;
-                if (match[scoreKey]) {
-                    const score = match[scoreKey].toString();
-                    const parts = score.split('-');
-                    if (parts.length === 2) {
-                        const pointA = parseInt(parts[0]);
-                        const pointB = parseInt(parts[1]);
-                        if (!isNaN(pointA) && !isNaN(pointB)) {
-                            if (pointA > pointB) setsWonA++;
-                            else if (pointB > pointA) setsWonB++;
+                const matchScore = document.createElement('div');
+                matchScore.className = 'match-score';
+                matchScore.textContent = 'BYE';
+
+                teamsElement.appendChild(teamA);
+                teamsElement.appendChild(matchScore);
+                // Don't add team B for bye matches
+            } else {
+                // Normal match with two teams
+                const teamB = document.createElement('div');
+                teamB.className = 'team';
+                teamB.textContent = match['team b'] || 'Team B';
+
+                let setsWonA = 0;
+                let setsWonB = 0;
+
+                for (let i = 1; i <= 5; i++) {
+                    const scoreKey = `score set ${i}`;
+                    if (match[scoreKey]) {
+                        const score = match[scoreKey].toString();
+                        const parts = score.split('-');
+                        if (parts.length === 2) {
+                            const pointA = parseInt(parts[0]);
+                            const pointB = parseInt(parts[1]);
+                            if (!isNaN(pointA) && !isNaN(pointB)) {
+                                if (pointA > pointB) setsWonA++;
+                                else if (pointB > pointA) setsWonB++;
+                            }
                         }
                     }
                 }
+
+                const matchScore = document.createElement('div');
+                matchScore.className = 'match-score';
+                matchScore.textContent = `${setsWonA} : ${setsWonB}`;
+
+                if (setsWonA > setsWonB) teamA.classList.add('winner-team');
+                else if (setsWonB > setsWonA) teamB.classList.add('winner-team');
+
+                teamsElement.appendChild(teamA);
+                teamsElement.appendChild(matchScore);
+                teamsElement.appendChild(teamB);
             }
 
-            const matchScore = document.createElement('div');
-            matchScore.className = 'match-score';
-            matchScore.textContent = `${setsWonA} : ${setsWonB}`;
-
-            if (setsWonA > setsWonB) teamA.classList.add('winner-team');
-            else if (setsWonB > setsWonA) teamB.classList.add('winner-team');
-
-            teamsElement.appendChild(teamA);
-            teamsElement.appendChild(matchScore);
-            teamsElement.appendChild(teamB);
             matchElement.appendChild(teamsElement);
 
             const scoresElement = document.createElement('div');
             scoresElement.className = 'scores';
 
-            for (let i = 1; i <= 5; i++) {
-                const scoreKey = `score set ${i}`;
-                if (match[scoreKey]) {
-                    const score = match[scoreKey].toString();
-                    const parts = score.split('-');
-                    const scoreElement = document.createElement('span');
-                    scoreElement.className = 'score';
+            // Only show individual set scores for non-bye matches
+            if (!isBye) {
+                for (let i = 1; i <= 5; i++) {
+                    const scoreKey = `score set ${i}`;
+                    if (match[scoreKey]) {
+                        const score = match[scoreKey].toString();
+                        const parts = score.split('-');
+                        const scoreElement = document.createElement('span');
+                        scoreElement.className = 'score';
 
-                    if (parts.length === 2) {
-                        const a = parseInt(parts[0]);
-                        const b = parseInt(parts[1]);
-                        if (!isNaN(a) && !isNaN(b)) {
-                            scoreElement.innerHTML = (a > b)
-                                ? `<strong>${a}</strong>-${b}`
-                                : (b > a)
-                                    ? `${a}-<strong>${b}</strong>`
-                                    : `${a}-${b}`;
+                        if (parts.length === 2) {
+                            const a = parseInt(parts[0]);
+                            const b = parseInt(parts[1]);
+                            if (!isNaN(a) && !isNaN(b)) {
+                                scoreElement.innerHTML = (a > b)
+                                    ? `<strong>${a}</strong>-${b}`
+                                    : (b > a)
+                                        ? `${a}-<strong>${b}</strong>`
+                                        : `${a}-${b}`;
+                            } else {
+                                scoreElement.textContent = score;
+                            }
                         } else {
                             scoreElement.textContent = score;
                         }
-                    } else {
-                        scoreElement.textContent = score;
+                        scoresElement.appendChild(scoreElement);
                     }
-                    scoresElement.appendChild(scoreElement);
                 }
             }
 
@@ -502,12 +536,25 @@
                 const teamA = match['team a'];
                 const teamB = match['team b'];
 
-                if (!teamA || !teamB) return;
+                if (!teamA) return;
 
                 // Initialize team stats if they don't exist
                 if (!teamStats[teamA]) {
                     teamStats[teamA] = { name: teamA, matches: 0, wins: 0, sets: 0, points: 0, goalDiff: 0, setDiff: 0 };
                 }
+
+                // Check if this is a bye (team b is empty/null/undefined)
+                const isBye = !teamB || teamB.toString().trim() === '';
+
+                if (isBye) {
+                    // Handle bye: award 2 points to team A, no sets or goals
+                    teamStats[teamA].matches++;
+                    teamStats[teamA].wins++;
+                    teamStats[teamA].points += 2;
+                    return; // Skip further processing for bye matches
+                }
+
+                // Normal match processing
                 if (!teamStats[teamB]) {
                     teamStats[teamB] = { name: teamB, matches: 0, wins: 0, sets: 0, points: 0, goalDiff: 0, setDiff: 0 };
                 }
@@ -579,7 +626,7 @@
             // Convert to array and sort by wins, then sets, then points
             const sortedTeams = Object.values(teamStats).sort((a, b) => {
                 if (a.points !== b.points) return b.points - a.points;
-                if (a.sets !== b.sets) return b.sets - a.sets;
+                if (a.setDiff !== b.setDiff) return b.setDiff - a.setDiff;
                 return b.goalDiff - a.goalDiff;
             });
 
