@@ -16,6 +16,7 @@
             --text-color: #e0e0e0;
             --border-color: #333333;
             --highlight-green: #2ecc71;
+            --knockout-color: #ffd900;
         }
 
         * {
@@ -51,6 +52,12 @@
             margin-bottom: 1rem;
         }
 
+        h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+
         .content {
             display: flex;
             flex-direction: column;
@@ -70,6 +77,10 @@
             margin-bottom: 1.5rem;
         }
 
+        .knockout-round {
+            border-left-color: var(--knockout-color);
+        }
+
         .current-round {
             border-left-color: var(--highlight-green);
             background-color: rgba(46, 204, 113, 0.1);
@@ -83,6 +94,10 @@
             font-size: 1.2rem;
             color: var(--primary-color);
             margin-bottom: 0.5rem;
+        }
+
+        .knockout-round .round-header {
+            color: var(--knockout-color);
         }
 
         .current-round .round-header {
@@ -99,6 +114,18 @@
             color: white;
             padding: 0.2rem 0.5rem;
             border-radius: 1rem;
+        }
+
+        .knockout-section {
+            background-color: rgba(231, 76, 60, 0.05);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .knockout-section h3 {
+            color: var(--knockout-color);
+            margin-top: 0;
         }
 
         .match {
@@ -205,19 +232,14 @@
         }
 
         .rankings th:nth-child(1),
-        /* Rank */
         .rankings td:nth-child(1),
         .rankings th:nth-child(3),
-        /* Matches */
         .rankings td:nth-child(3),
         .rankings th:nth-child(4),
-        /* Goals± */
         .rankings td:nth-child(4),
         .rankings th:nth-child(5),
-        /* Sets± */
         .rankings td:nth-child(5),
         .rankings th:nth-child(6),
-        /* Points */
         .rankings td:nth-child(6) {
             width: 60px;
             text-align: center;
@@ -230,28 +252,12 @@
             font-weight: bold;
         }
 
-        .file-input {
-            margin-bottom: 1rem;
-        }
-
-        .file-input input {
-            display: block;
-            width: 100%;
-            padding: 0.5rem;
-            background-color: var(--card-bg);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-            border-radius: 0.25rem;
-            margin-top: 0.5rem;
-        }
-
         .loading {
             text-align: center;
             padding: 2rem;
             color: #666;
         }
 
-        /* Responsive */
         @media (min-width: 768px) {
             .content {
                 flex-direction: row;
@@ -274,7 +280,6 @@
     </header>
 
     <div class="container">
-
         <div class="content">
             <div class="rounds card">
                 <h2>Rounds</h2>
@@ -316,7 +321,6 @@
         }
 
         function processData(data) {
-            // Clean up header names (trim whitespace)
             data = data.map(row => {
                 const cleanedRow = {};
                 Object.keys(row).forEach(key => {
@@ -326,34 +330,62 @@
                 return cleanedRow;
             });
 
-            // Extract rounds and display them
             displayRounds(data);
-
-            // Calculate and display rankings
             displayRankings(data);
         }
 
+        function isKnockoutRound(roundName) {
+            const name = roundName.toString().toUpperCase();
+            return name === 'QF' || name === 'SF' || name === 'F';
+        }
+
+        function getKnockoutRoundName(roundName) {
+            const name = roundName.toString().toUpperCase();
+            switch(name) {
+                case 'QF': return 'Quarter Final';
+                case 'SF': return 'Semi Final';
+                case 'F': return 'Final';
+                default: return roundName;
+            }
+        }
+
+        function getKnockoutOrder(roundName) {
+            const name = roundName.toString().toUpperCase();
+            switch(name) {
+                case 'QF': return 3;
+                case 'SF': return 2;
+                case 'F': return 1;
+                default: return 999;
+            }
+        }
+
         function displayRounds(data) {
-            // Group by round
             const roundsMap = _.groupBy(data, 'round');
 
-            // Identify current round (highest number with any incomplete match)
+            // Separate group and knockout rounds
+            const groupRounds = {};
+            const knockoutRounds = {};
+
+            Object.keys(roundsMap).forEach(round => {
+                if (isKnockoutRound(round)) {
+                    knockoutRounds[round] = roundsMap[round];
+                } else {
+                    groupRounds[round] = roundsMap[round];
+                }
+            });
+
+            // Identify current round (highest group round number with incomplete match)
             let currentRound = null;
             let maxRoundNumber = -Infinity;
 
-            Object.keys(roundsMap).forEach(round => {
+            Object.keys(groupRounds).forEach(round => {
                 const num = parseInt(round);
                 if (!isNaN(num)) {
-                    const matches = roundsMap[round];
+                    const matches = groupRounds[round];
                     const hasIncompleteMatch = matches.some(match => {
-                        // Check if this is a bye match (team b is empty)
                         const isBye = !match['team b'] || match['team b'].toString().trim() === '';
-                        if (isBye) {
-                            // Bye matches are always "complete"
-                            return false;
-                        }
+                        if (isBye) return false;
                         
-                        // Check if any regular match has no scores
                         let hasAnyScore = false;
                         for (let i = 1; i <= 5; i++) {
                             const score = match[`score set ${i}`];
@@ -362,7 +394,7 @@
                                 break;
                             }
                         }
-                        return !hasAnyScore; // Return true if no scores found (incomplete match)
+                        return !hasAnyScore;
                     });
                     
                     if (hasIncompleteMatch && num > maxRoundNumber) {
@@ -372,7 +404,7 @@
                 }
             });
 
-            const sortedRounds = Object.keys(roundsMap).sort((a, b) => {
+            const sortedGroupRounds = Object.keys(groupRounds).sort((a, b) => {
                 const numA = parseInt(a);
                 const numB = parseInt(b);
                 return (!isNaN(numB) && !isNaN(numA)) ? numB - numA : String(b).localeCompare(String(a));
@@ -382,7 +414,7 @@
             roundsContainer.innerHTML = '';
 
             // Show Current Round
-            if (currentRound && roundsMap[currentRound]) {
+            if (currentRound && groupRounds[currentRound]) {
                 const currentRoundWrapper = document.createElement('div');
                 currentRoundWrapper.className = 'current-round round';
 
@@ -391,7 +423,7 @@
                 roundHeader.textContent = `Round ${currentRound}`;
                 currentRoundWrapper.appendChild(roundHeader);
 
-                roundsMap[currentRound].forEach(match => {
+                groupRounds[currentRound].forEach(match => {
                     const matchElement = createMatchElement(match);
                     currentRoundWrapper.appendChild(matchElement);
                 });
@@ -399,16 +431,50 @@
                 roundsContainer.appendChild(currentRoundWrapper);
             }
 
-            // Title for Previous Rounds
+            // Show Knockout Phase
+            if (Object.keys(knockoutRounds).length > 0) {
+                const koSection = document.createElement('div');
+                koSection.className = 'knockout-section';
+
+                const koHeader = document.createElement('h3');
+                koHeader.textContent = 'Knockout Phase';
+                koSection.appendChild(koHeader);
+
+                const sortedKORounds = Object.keys(knockoutRounds).sort((a, b) => {
+                    return getKnockoutOrder(a) - getKnockoutOrder(b);
+                });
+
+                sortedKORounds.forEach(roundName => {
+                    const matches = knockoutRounds[roundName];
+                    const roundElement = document.createElement('div');
+                    roundElement.className = 'round knockout-round';
+
+                    const roundHeader = document.createElement('div');
+                    roundHeader.className = 'round-header';
+                    roundHeader.textContent = getKnockoutRoundName(roundName);
+                    roundElement.appendChild(roundHeader);
+
+                    matches.forEach(match => {
+                        const matchElement = createMatchElement(match);
+                        roundElement.appendChild(matchElement);
+                    });
+
+                    koSection.appendChild(roundElement);
+                });
+
+                roundsContainer.appendChild(koSection);
+            }
+
+            // Title for Group Rounds
             const prevHeader = document.createElement('h3');
-            prevHeader.textContent = 'Previous Rounds';
+            prevHeader.textContent = 'Preliminary Rounds';
             roundsContainer.appendChild(prevHeader);
 
-            // Show previous rounds
-            sortedRounds.forEach(roundName => {
+            // Show group rounds
+            sortedGroupRounds.forEach(roundName => {
                 if (roundName === currentRound) return;
 
-                const matches = roundsMap[roundName];
+                const matches = groupRounds[roundName];
                 const roundElement = document.createElement('div');
                 roundElement.className = 'round';
 
@@ -426,7 +492,6 @@
             });
         }
 
-        // Helper to create match elements
         function createMatchElement(match) {
             const matchElement = document.createElement('div');
             matchElement.className = 'match';
@@ -438,12 +503,10 @@
             teamA.className = 'team';
             teamA.textContent = match['team a'] || 'Team A';
 
-            // Check if this is a bye (team b is empty/null/undefined)
             const isBye = !match['team b'] || match['team b'].toString().trim() === '';
 
             if (isBye) {
-                // For bye matches, only show the team that gets the bye
-                teamA.classList.add('winner-team'); // Mark as winner (green)
+                teamA.classList.add('winner-team');
 
                 const matchScore = document.createElement('div');
                 matchScore.className = 'match-score';
@@ -451,9 +514,7 @@
 
                 teamsElement.appendChild(teamA);
                 teamsElement.appendChild(matchScore);
-                // Don't add team B for bye matches
             } else {
-                // Normal match with two teams
                 const teamB = document.createElement('div');
                 teamB.className = 'team';
                 teamB.textContent = match['team b'] || 'Team B';
@@ -494,7 +555,6 @@
             const scoresElement = document.createElement('div');
             scoresElement.className = 'scores';
 
-            // Only show individual set scores for non-bye matches
             if (!isBye) {
                 for (let i = 1; i <= 5; i++) {
                     const scoreKey = `score set ${i}`;
@@ -529,38 +589,35 @@
         }
 
         function displayRankings(data) {
-            // Calculate team statistics
             const teamStats = {};
 
+            // Only process group stage rounds for rankings
             data.forEach(match => {
+                const roundName = match['round'];
+                if (isKnockoutRound(roundName)) return; // Skip knockout rounds
+
                 const teamA = match['team a'];
                 const teamB = match['team b'];
 
                 if (!teamA) return;
 
-                // Initialize team stats if they don't exist
                 if (!teamStats[teamA]) {
                     teamStats[teamA] = { name: teamA, matches: 0, wins: 0, sets: 0, points: 0, goalDiff: 0, setDiff: 0 };
                 }
 
-                // Check if this is a bye (team b is empty/null/undefined)
                 const isBye = !teamB || teamB.toString().trim() === '';
 
                 if (isBye) {
-                    // Handle bye: award 2 points to team A, no sets or goals
                     teamStats[teamA].matches++;
                     teamStats[teamA].wins++;
                     teamStats[teamA].points += 2;
-                    return; // Skip further processing for bye matches
+                    return;
                 }
 
-                // Normal match processing
                 if (!teamStats[teamB]) {
                     teamStats[teamB] = { name: teamB, matches: 0, wins: 0, sets: 0, points: 0, goalDiff: 0, setDiff: 0 };
                 }
 
-                
-                // Count sets and determine winner
                 let setsA = 0;
                 let setsB = 0;
                 let goalsA = 0;
@@ -591,22 +648,19 @@
                 }
 
                 if (setsA > 0 || setsB > 0) {
-                    // Count matches
                     teamStats[teamA].matches++;
                     teamStats[teamB].matches++;
                 }
 
-                // Update team stats
                 teamStats[teamA].sets += setsA;
                 teamStats[teamB].sets += setsB;
 
                 teamStats[teamA].setDiff += setsA - setsB;
                 teamStats[teamB].setDiff += setsB - setsA;
 
-                // count goal difference for each team
                 teamStats[teamA].goalDiff += goalsA - goalsB;
                 teamStats[teamB].goalDiff += goalsB - goalsA;
-                // Ignore match points; award 2 points for a win
+
                 if (setsA > setsB) {
                     teamStats[teamA].wins++;
                     teamStats[teamA].points += 2;
@@ -614,16 +668,8 @@
                     teamStats[teamB].wins++;
                     teamStats[teamB].points += 2;
                 }
-
-                // Determine match winner
-                if (setsA > setsB) {
-                    teamStats[teamA].wins++;
-                } else if (setsB > setsA) {
-                    teamStats[teamB].wins++;
-                }
             });
 
-            // Convert to array and sort by wins, then sets, then points
             const sortedTeams = Object.values(teamStats).sort((a, b) => {
                 if (a.points !== b.points) return b.points - a.points;
                 if (a.setDiff !== b.setDiff) return b.setDiff - a.setDiff;
@@ -640,7 +686,6 @@
 
             const table = document.createElement('table');
 
-            // Create table header
             const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
             ['#', 'Team', 'Num.', 'G±', 'S±', 'P'].forEach(text => {
@@ -651,7 +696,6 @@
             thead.appendChild(headerRow);
             table.appendChild(thead);
 
-            // Create table body
             const tbody = document.createElement('tbody');
             sortedTeams.forEach((team, index) => {
                 const row = document.createElement('tr');
